@@ -1,5 +1,6 @@
 # TensorFlow Lite model
 *.tflite
+labels.txt
 
 # Swift
 
