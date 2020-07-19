@@ -52,6 +52,7 @@ public class LegacyCameraConnectionFragment extends Fragment {
   private Camera camera;
   private Camera.PreviewCallback imageListener;
   private Size desiredSize;
+  private SurfaceTexture texture;
   /** The layout identifier to inflate for this Fragment. */
   private int layout;
   /** An {@link AutoFitTextureView} for camera preview. */
@@ -66,38 +67,10 @@ public class LegacyCameraConnectionFragment extends Fragment {
         public void onSurfaceTextureAvailable(
             final SurfaceTexture texture, final int width, final int height) {
 
-          int index = getCameraId();
-          camera = Camera.open(index);
+          LegacyCameraConnectionFragment.this.texture = texture;
+          initializeCamera();
 
-          try {
-            Camera.Parameters parameters = camera.getParameters();
-            List<String> focusModes = parameters.getSupportedFocusModes();
-            if (focusModes != null
-                && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-              parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-            }
-            List<Camera.Size> cameraSizes = parameters.getSupportedPreviewSizes();
-            Size[] sizes = new Size[cameraSizes.size()];
-            int i = 0;
-            for (Camera.Size size : cameraSizes) {
-              sizes[i++] = new Size(size.width, size.height);
-            }
-            Size previewSize =
-                CameraConnectionFragment.chooseOptimalSize(
-                    sizes, desiredSize.getWidth(), desiredSize.getHeight());
-            parameters.setPreviewSize(previewSize.getWidth(), previewSize.getHeight());
-            camera.setDisplayOrientation(90);
-            camera.setParameters(parameters);
-            camera.setPreviewTexture(texture);
-          } catch (IOException exception) {
-            camera.release();
-          }
-
-          camera.setPreviewCallbackWithBuffer(imageListener);
           Camera.Size s = camera.getParameters().getPreviewSize();
-          camera.addCallbackBuffer(
-              new byte[ImageUtils.getYUVByteSize(/* width= */ s.height, /* height= */ s.width)]);
-
           textureView.setAspectRatio(/* width= */ s.height, /* height= */ s.width);
 
           camera.startPreview();
@@ -155,9 +128,13 @@ public class LegacyCameraConnectionFragment extends Fragment {
     // the SurfaceTextureListener).
 
     if (textureView.isAvailable()) {
-      if (camera != null) {
-        camera.startPreview();
+      if (texture == null) {
+        texture = textureView.getSurfaceTexture();
       }
+      if (camera == null) {
+        initializeCamera();
+      }
+      camera.startPreview();
     } else {
       textureView.setSurfaceTextureListener(surfaceTextureListener);
     }
@@ -168,6 +145,42 @@ public class LegacyCameraConnectionFragment extends Fragment {
     stopCamera();
     stopBackgroundThread();
     super.onPause();
+  }
+
+  private void initializeCamera() {
+
+    int index = getCameraId();
+    camera = Camera.open(index);
+
+    try {
+      Camera.Parameters parameters = camera.getParameters();
+      List<String> focusModes = parameters.getSupportedFocusModes();
+      if (focusModes != null
+              && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+        parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+      }
+      List<Camera.Size> cameraSizes = parameters.getSupportedPreviewSizes();
+      Size[] sizes = new Size[cameraSizes.size()];
+      int i = 0;
+      for (Camera.Size size : cameraSizes) {
+        sizes[i++] = new Size(size.width, size.height);
+      }
+      Size previewSize =
+              CameraConnectionFragment.chooseOptimalSize(
+                      sizes, desiredSize.getWidth(), desiredSize.getHeight());
+      parameters.setPreviewSize(previewSize.getWidth(), previewSize.getHeight());
+      camera.setDisplayOrientation(90);
+      camera.setParameters(parameters);
+      camera.setPreviewTexture(texture);
+    } catch (IOException exception) {
+      camera.release();
+    }
+
+    camera.setPreviewCallbackWithBuffer(imageListener);
+    Camera.Size s = camera.getParameters().getPreviewSize();
+    camera.addCallbackBuffer(
+            new byte[ImageUtils.getYUVByteSize(/* width= */ s.height, /* height= */ s.width)]);
+
   }
 
   /** Starts a background thread and its {@link Handler}. */
